@@ -11,6 +11,11 @@ const routes: RouteRecordRaw[] = [
     name: 'voice-to-text',
     component: () => import('@/views/NativeVoiceToTextView.vue'),
   },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'not-found',
+    component: () => import('@/views/NotFoundView.vue'),
+  },
 ]
 
 const router = createRouter({
