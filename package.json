@@ -15,9 +15,11 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
-    "vue": "beta"
+    "vue": "beta",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^24.10.9",
     "@vitejs/plugin-vue": "^6.0.3",
@@ -31,6 +33,7 @@
     "npm-run-all2": "^8.0.4",
     "oxlint": "~1.42.0",
     "prettier": "3.8.1",
+    "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
     "vite": "beta",
     "vite-plugin-vue-devtools": "^8.0.5",
