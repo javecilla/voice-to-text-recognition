@@ -1,7 +1,15 @@
 <script setup lang="ts">
+import { ref, watch, nextTick } from 'vue'
+
+interface ChatMessage {
+  id: number
+  text: string
+  isFinal: boolean
+}
+
 interface Props {
-  transcript: string
-  interimTranscript?: string
+  conversation: ChatMessage[] // Changed from 'transcript' string to Array
+  currentDraft: string
   isListening: boolean
   listeningStatus?: 'idle' | 'starting' | 'ready'
   errorMessage: string
@@ -11,11 +19,27 @@ interface Emits {
   start: []
   stop: []
   reset: []
-  'update:transcript': [value: string]
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 defineEmits<Emits>()
+
+const textContainer = ref<HTMLDivElement | null>(null)
+
+// Auto-scroll logic remains the same
+watch(
+  () => [props.conversation.length, props.currentDraft],
+  async () => {
+    await nextTick()
+    if (textContainer.value) {
+      textContainer.value.scrollTo({
+        top: textContainer.value.scrollHeight,
+        behavior: 'smooth',
+      })
+    }
+  },
+  { deep: true },
+)
 </script>
 
 <template>
@@ -31,16 +55,13 @@ defineEmits<Emits>()
     <div
       class="absolute inset-0 bg-[radial-gradient(circle_at_center,#818cf8_0%,transparent_50%)] opacity-60"
     ></div>
-    <div
-      class="absolute inset-0 opacity-20 pointer-events-none mix-blend-overlay"
-      style="background-image: url('https://grainy-gradients.vercel.app/noise.svg')"
-    ></div>
+    <div class="absolute inset-0 opacity-20 pointer-events-none mix-blend-overlay"></div>
 
     <div
-      class="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden transition-all duration-500 ease-in-out h-150 flex flex-col"
+      class="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden transition-all duration-500 ease-in-out h-[80vh] flex flex-col"
     >
       <div
-        v-if="!isListening && transcript.length === 0"
+        v-if="!isListening && conversation.length === 0"
         class="flex-1 flex flex-col items-center justify-center space-y-6 cursor-pointer group"
         @click="$emit('start')"
       >
@@ -62,43 +83,42 @@ defineEmits<Emits>()
           </button>
         </div>
         <div class="text-center space-y-2 translate-y-4">
-          <h2 class="text-xl font-medium text-slate-800">Click to start transcribing</h2>
-          <p class="text-slate-500 text-sm">Experience the power of Voice-to-Text</p>
+          <h2 class="text-xl font-medium text-slate-800">Start Consultation</h2>
+          <p class="text-slate-500 text-sm">Conversation Mode Enabled</p>
         </div>
       </div>
 
-      <div v-else class="flex-1 flex flex-col p-8 md:p-12">
-        <div
-          class="w-full flex-1 text-2xl leading-relaxed text-slate-800 placeholder-slate-300 bg-transparent overflow-y-auto"
-        >
-          <span>{{ transcript }}</span>
-          <span v-if="interimTranscript" class="italic text-slate-400">{{
-            interimTranscript
-          }}</span>
+      <div v-else class="flex-1 flex flex-col p-12 overflow-hidden bg-white">
+        <div ref="textContainer" class="w-full flex-1 overflow-y-auto space-y-4 pr-2">
+          <div
+            v-for="msg in conversation"
+            :key="msg.id"
+            class="flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300"
+          >
+            <div class="bg-white p-4 shadow-sm max-w-[100%]">
+              <p class="text-slate-800 text-lg leading-relaxed">{{ msg.text }}</p>
+            </div>
+          </div>
+
+          <div v-if="currentDraft" class="flex flex-col">
+            <div class="bg-slate-200 p-4 max-w-[100%] opacity-80">
+              <p class="text-slate-700 text-lg leading-relaxed">{{ currentDraft }}...</p>
+            </div>
+          </div>
         </div>
 
-        <div class="flex items-center justify-between mt-6 pt-6 border-t border-slate-100">
+        <div
+          class="flex items-center justify-between mt-4 pt-4 border-t border-slate-200 bg-white -mx-6 px-6 -mb-6 pb-6 z-10"
+        >
           <div class="flex items-center gap-3">
-            <template v-if="isListening && listeningStatus === 'starting'">
+            <template v-if="isListening">
               <span class="relative flex h-3 w-3">
                 <span
-                  class="animate-pulse absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"
-                ></span>
-                <span class="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span>
-              </span>
-              <span class="text-sm font-medium text-slate-600">Setting up audio...</span>
-            </template>
-            <template v-else-if="isListening && listeningStatus === 'ready'">
-              <span class="relative flex h-3 w-3">
-                <span
-                  class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"
+                  class="animate-pulse absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"
                 ></span>
                 <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
               </span>
-              <span class="text-sm font-medium text-slate-600">Transcribing...</span>
-            </template>
-            <template v-else>
-              <span class="text-sm text-slate-400">{{ transcript.length }} chars</span>
+              <span class="text-sm font-bold text-slate-600">Listening...</span>
             </template>
           </div>
 
@@ -106,25 +126,16 @@ defineEmits<Emits>()
             <button
               v-if="isListening"
               @click="$emit('stop')"
-              class="bg-black text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-slate-800 transition-colors shadow-lg flex items-center gap-2"
+              class="bg-[#122d39] text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-[#174a52] transition-colors shadow-lg flex items-center gap-2"
             >
-              Finish
+              Stop & Save
             </button>
-
             <button
               v-else
               @click="$emit('reset')"
               class="bg-white border border-slate-200 text-slate-700 px-6 py-2.5 rounded-full text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-2"
             >
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              New transcription
+              New Patient
             </button>
           </div>
         </div>
@@ -139,14 +150,3 @@ defineEmits<Emits>()
     </div>
   </div>
 </template>
-
-<style scoped>
-/* Optional: Only if you want specific scrollbar hiding */
-textarea::-webkit-scrollbar {
-  display: none;
-}
-textarea {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-</style>

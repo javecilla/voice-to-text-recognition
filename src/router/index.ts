@@ -8,7 +8,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/native-voice-to-text',
-    name: 'voice-to-text',
+    name: 'native-voice-to-text',
     component: () => import('@/views/NativeVoiceToTextView.vue'),
   },
   {
