@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import VoiceToText from '@/components/VoiceToText.vue'
+import IntakeForm from '@/components/IntakeForm.vue'
+import { extractIntakeData } from '@/services/aiExtractor'
 
 // --- Interfaces ---
 interface SpeechRecognitionEvent extends Event {
@@ -61,6 +63,8 @@ const isListening = ref<boolean>(false)
 const listeningStatus = ref<'idle' | 'starting' | 'ready'>('idle')
 const errorMessage = ref<string>('')
 const isManuallyStopped = ref<boolean>(false)
+const isProcessingAI = ref(false)
+const intakeFormRef = ref<InstanceType<typeof IntakeForm> | null>(null) // Reference to the child component
 
 // We need a hidden variable to store the "Solid" text for the current bubble
 // so we don't lose it when the interim (gray) text flickers.
@@ -222,11 +226,38 @@ const startRecognition = () => {
   }
 }
 
-const stopRecognition = () => {
+const stopRecognition = async () => {
+  // 1. Force save any pending draft text to the conversation array
   if (currentDraft.value) pushToHistory()
+
   isManuallyStopped.value = true
   recognition?.stop()
   isListening.value = false
+
+  // 2. TRIGGER AI PROCESSING
+  await processConversationWithAI()
+}
+
+const processConversationWithAI = async () => {
+  if (conversation.value.length === 0) return
+
+  isProcessingAI.value = true
+
+  // Combine all chat bubbles into one readable block
+  const fullTranscript = conversation.value.map((msg) => msg.text).join('\n')
+
+  console.log('Sending to Gemini:', fullTranscript)
+
+  // Call our service
+  const extractedData = await extractIntakeData(fullTranscript)
+
+  if (extractedData && intakeFormRef.value) {
+    console.log('Gemini Extracted:', extractedData)
+    // Pass data to the form component
+    intakeFormRef.value.populateForm(extractedData)
+  }
+
+  isProcessingAI.value = false
 }
 
 const handleReset = () => {
@@ -239,14 +270,39 @@ const handleReset = () => {
 </script>
 
 <template>
-  <VoiceToText
-    :conversation="conversation"
-    :current-draft="currentDraft"
-    :is-listening="isListening"
-    :listening-status="listeningStatus"
-    :error-message="errorMessage"
-    @start="startRecognition"
-    @stop="stopRecognition"
-    @reset="handleReset"
-  />
+  <div
+    class="min-h-screen w-full relative overflow-hidden bg-slate-900 flex flex-col items-center justify-center p-6"
+  >
+    <div
+      class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,#fb923c_0%,transparent_40%)] opacity-80"
+    ></div>
+    <div
+      class="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,#2dd4bf_0%,transparent_40%)] opacity-80"
+    ></div>
+    <div
+      class="absolute inset-0 bg-[radial-gradient(circle_at_center,#818cf8_0%,transparent_50%)] opacity-60"
+    ></div>
+    <div class="absolute inset-0 opacity-20 pointer-events-none mix-blend-overlay"></div>
+
+    <div
+      class="relative z-10 w-full max-w-7xl flex flex-col lg:flex-row items-start justify-center gap-8"
+    >
+      <div class="w-full lg:w-3/5">
+        <VoiceToText
+          :conversation="conversation"
+          :current-draft="currentDraft"
+          :is-listening="isListening"
+          :listening-status="listeningStatus"
+          :error-message="errorMessage"
+          @start="startRecognition"
+          @stop="stopRecognition"
+          @reset="handleReset"
+        />
+      </div>
+
+      <div class="w-full lg:w-2/5">
+        <IntakeForm ref="intakeFormRef" />
+      </div>
+    </div>
+  </div>
 </template>
