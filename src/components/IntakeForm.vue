@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 
 // --- HELPER: Get Today's Date in YYYY-MM-DD format ---
 const getTodayDate = () => {
@@ -50,6 +50,11 @@ interface IntakeData {
   bodyLocation: string
   animalType: string
   vaccinationStatus: 'vaccinated' | 'unvaccinated' | 'unknown' | ''
+
+  //Triage Assessment (to be filled by AI)
+  riskLevel: 'High Risk' | 'Moderate Risk' | 'Low Risk' | ''
+  triageCategory: 'Category III' | 'Category II' | 'Category I' | ''
+  riskFlags: string[]
 }
 
 const props = defineProps<{
@@ -87,6 +92,10 @@ const formData = ref<IntakeData>({
   bodyLocation: '',
   animalType: '',
   vaccinationStatus: '',
+  // Triage Init (to be filled by AI)
+  riskLevel: '',
+  triageCategory: '',
+  riskFlags: [],
 })
 
 // Temporary array to handle multiple checkboxes
@@ -113,36 +122,54 @@ const handleSubmit = async () => {
 }
 
 const populateForm = (data: Partial<IntakeData>) => {
-  // 1. Merge simple string fields
   Object.assign(formData.value, data)
 
-  // 2. Normalize Animal Type (Capitalize)
   if (data.animalType) {
     formData.value.animalType = data.animalType.charAt(0).toUpperCase() + data.animalType.slice(1)
   }
 
-  // 3. Handle Checkboxes (Type of Exposure)
-  // The AI returns a string "Bite, Scratch", but the checkboxes are bound to an Array.
-  // We need to sync them manually here.
   if (data.typeOfExposure) {
-    // Split by comma, trim whitespace, and filter out empty strings
     const exposures = data.typeOfExposure
       .split(',')
       .map((item) => item.trim())
       .filter((i) => i)
-
-    // Update the array bound to v-model
     selectedExposures.value = exposures
-
-    // Update the hidden string field (redundant because of watcher, but safe)
     formData.value.typeOfExposure = data.typeOfExposure
   }
 
-  // 4. Handle Boolean/Radio fields normalization if needed
-  // (The AI Prompt is instructed to return "Yes"/"No", which matches our v-model, so this is usually fine)
+  // Auto-scroll to top if high risk detected
+  if (data.riskLevel === 'High Risk') {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 }
 
 defineExpose({ populateForm })
+
+const riskColorClass = computed(() => {
+  switch (formData.value.riskLevel) {
+    case 'High Risk':
+      return 'bg-red-50 border-red-200 text-red-800'
+    case 'Moderate Risk':
+      return 'bg-orange-50 border-orange-200 text-orange-800'
+    case 'Low Risk':
+      return 'bg-green-50 border-green-200 text-green-800'
+    default:
+      return 'bg-slate-50 border-slate-200 text-slate-600'
+  }
+})
+
+const riskIcon = computed(() => {
+  switch (formData.value.riskLevel) {
+    case 'High Risk':
+      return '🚨'
+    case 'Moderate Risk':
+      return '⚠️'
+    case 'Low Risk':
+      return '✅'
+    default:
+      return '📋'
+  }
+})
 </script>
 
 <template>
@@ -200,6 +227,38 @@ defineExpose({ populateForm })
     <div class="p-8 pb-4 border-b border-slate-100">
       <h2 class="text-2xl font-bold text-slate-800">New Patient Intake</h2>
       <p class="text-slate-500 text-sm mt-1">Please fill in the incident details below.</p>
+    </div>
+
+    <div v-if="formData.riskLevel" class="px-8 pt-6">
+      <div
+        :class="[
+          'rounded-2xl p-6 border-l-8 shadow-sm transition-all duration-500',
+          riskColorClass,
+        ]"
+      >
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-2xl">{{ riskIcon }}</span>
+              <h3 class="text-lg font-black uppercase tracking-wider">{{ formData.riskLevel }}</h3>
+            </div>
+            <p class="font-bold text-xl">{{ formData.triageCategory }}</p>
+          </div>
+          <div
+            v-if="formData.riskLevel === 'High Risk'"
+            class="h-4 w-4 bg-red-500 rounded-full animate-ping"
+          ></div>
+        </div>
+
+        <div v-if="formData.riskFlags.length > 0" class="mt-4 pt-4 border-t border-black/10">
+          <p class="text-xs font-bold uppercase opacity-70 mb-2">Detected Risk Factors:</p>
+          <ul class="list-disc pl-5 space-y-1">
+            <li v-for="(flag, i) in formData.riskFlags" :key="i" class="text-sm font-medium">
+              {{ flag }}
+            </li>
+          </ul>
+        </div>
+      </div>
     </div>
 
     <div class="p-8 space-y-8 overflow-y-auto">
